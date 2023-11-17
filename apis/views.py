@@ -98,3 +98,38 @@ class Decryption(APIView):
         #return Response({"encrypted_data": encrypted_data,"decrypted_data":decrypted_data}, status= status.HTTP_200_OK)
 
 
+class Encryption(APIView):
+    parser_classes = (MultiPartParser, FormParser)
+
+    def post(self, request, *args, **kwargs):
+        user = request.user
+        original_file = request.data.get('file')
+        if not original_file:
+            return Response({'error': 'File is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # image = request.FILES.get('image')
+
+        original_data = original_file.read()
+
+        key = Fernet.generate_key()
+        cipher = Fernet(key)
+        encrypted_data = cipher.encrypt(original_data)
+
+        original_file.seek(0)  # Reset file pointer to the beginning
+        original_file.write(encrypted_data)
+
+
+
+
+
+
+        # Create a new EncryptedFile instance with the original file
+        encrypted_file = EncryptedFile(
+            user=user,
+            # Assuming you have 'file_name' in your request data
+            file_name=request.data.get('file_name'),
+            file=original_file  # Store the original file
+        )
+        encrypted_file.save()
+
+        return Response({"key": key, 'file_id': encrypted_file.id}, status=status.HTTP_201_CREATED)
