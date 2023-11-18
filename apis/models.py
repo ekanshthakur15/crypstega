@@ -13,7 +13,6 @@ class EncryptedFile(models.Model):
     def __str__(self) -> str:
         return self.file_name
 
-
-class SteganographyImage(models.Model):
-    image_data = models.ImageField(upload_to='steganography/')
-    created_at = models.DateTimeField(auto_now_add=True)
+    class Meta:
+        managed = False
+        db_table = 'apis_encryptedfile'

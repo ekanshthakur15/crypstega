@@ -87,16 +87,40 @@ WSGI_APPLICATION = "config.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
+# DATABASES = {
+#     "default": {
+#         # "ENGINE": "django.db.backends.postgresql",
+#         # "NAME": "crypstokun",
+#         # # "USER": "ekansh",
+#         # # "PASSWORD":"Hello@1234",
+#         # "USER":"ohzjyhqg",
+#         # "PASSWORD":"glCeJ0yFysw6EmT3qpMrgpdcXXZgDEKj",
+#         # # "HOST":"127.0.0.1",
+#         # "HOST":"https://ohzjyhqg:glCeJ0yFysw6EmT3qpMrgpdcXXZgDEKj@kiouni.db.elephantsql.com/ohzjyhqg",
+#         # "PORT": "5432",
+
+#         "ENGINE": "django.db.backends.postgresql",
+#         "NAME": "crypstokun",
+#         "USER": "ohzjyhqg",
+#         "PASSWORD": "glCeJ0yFysw6EmT3qpMrgpdcXXZgDEKj",
+#         "HOST": "kiouni.db.elephantsql.com",
+#         "PORT": "5432",
+#         "OPTIONS": {"sslmode": "disable"},
+
+#     }
+# }
+
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": "crypstega",
-        "USER": "ekansh",
-        "PASSWORD":"Hello@1234",
-        "HOST":"127.0.0.1",
-        "PORT": "5432",
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'ohzjyhqg',
+        'USER': 'ohzjyhqg',
+        'PASSWORD': 'glCeJ0yFysw6EmT3qpMrgpdcXXZgDEKj',
+        'HOST': 'kiouni.db.elephantsql.com',
+        'PORT': '5432',
     }
 }
+
 
 
 # Password validation
@@ -142,3 +166,10 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR/'media'
+
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_USE_TLS = True
+EMAIL_PORT  = 587
+EMAIL_HOST_USER = "ekansh327@gmail.com"
+EMAIL_HOST_PASSWORD = "oowm povk tjfh gfab"
