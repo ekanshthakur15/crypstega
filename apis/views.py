@@ -1,12 +1,14 @@
 
-import base64
 import os
 
-import stepic
 from cryptography.fernet import Fernet
+from django.contrib.auth import authenticate, get_user_model, login
+from django.views.decorators.csrf import csrf_exempt
 from PIL import Image
-from rest_framework import status
+from rest_framework import generics, permissions, status
+from rest_framework.authentication import BasicAuthentication
 from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -15,7 +17,26 @@ from .serializers import *
 from .utils import *
 
 
-class FileListView(APIView):
+class RegisterUserView(generics.CreateAPIView):
+    queryset = get_user_model().objects.all()
+    serializer_class = UserSerializer
+    permission_classes = (permissions.AllowAny,)
+
+
+class LoginView(APIView):
+    authentication_classes = [BasicAuthentication]
+
+    @csrf_exempt
+    def post(self, request, *args, **kwargs):
+        serializer = LoginSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        user = serializer.validated_data['user']
+        login(request, user)  # Perform the login
+
+        return Response({'message': 'Login successful'}, status=status.HTTP_200_OK)
+
+class SharedFileListView(APIView):
     def get(self, request):
         try:
             query_set = EncryptedFile.objects.filter(user = request.user)
@@ -25,21 +46,43 @@ class FileListView(APIView):
         for file in query_set:
             data = {
                 "file_name" : file.file_name,
-                "upload_date": file.uploaded_at
+                "upload_date": file.uploaded_at,
+                "to": file.recepient.username
             }
             files.append(data)
         return Response(files, status= status.HTTP_200_OK)
     
+
+class ReceivedFileListView(APIView):
+    def get(self, request):
+        try:
+            query_set = EncryptedFile.objects.filter(recepient=request.user)
+        except EncryptedFile.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        files = []
+        for file in query_set:
+            data = {
+                "file_name": file.file_name,
+                "upload_date": file.uploaded_at,
+                "from": file.user.username
+            }
+            files.append(data)
+        return Response(files, status=status.HTTP_200_OK)
 
 class SteganoEncryption(APIView):
     parser_classes = (MultiPartParser, FormParser)
 
     def post(self, request, *args, **kwargs):
         user = request.user
+        receiver_name = request.data.get('username')
         original_file = request.data.get('file')
         if not original_file:
             return Response({'error': 'File is required'}, status=status.HTTP_400_BAD_REQUEST)
-
+        
+        try:
+            receiver = User.objects.get(username =receiver_name)
+        except User.DoesNotExist:
+            return Response({"error": "Receiver doesn't exist"}, status=status.HTTP_404_NOT_FOUND)
 
 
         original_data = original_file.read()
@@ -64,20 +107,20 @@ class SteganoEncryption(APIView):
             os.makedirs(media_directory)
 
         encrypted_image_path = os.path.join( media_directory, 'new_' + image_file.name)
-        #encrypted_image.save(encrypted_image_path)
+        encrypted_image.save(encrypted_image_path)
 
         
         subject = "File sharedon CryptoKun"
         message = f"A file has been securely shared with you by {request.user.username} and the key to see it's content is the image. Thank you"
+        to_email = request.data.get('receiver')
         recipient_list = []
-        to_email = request.data.get('reciever')
         recipient_list.append(to_email)
 
         send_email_with_image(subject, message, recipient_list, encrypted_image_path)
 
         encrypted_file = EncryptedFile(
             user=user,
-
+            recepient=receiver,
             file_name=request.data.get('file_name'),
             file=original_file
         )
@@ -125,13 +168,3 @@ class SteganoDecryption(APIView):
             return Response({"errors": str(e)} ,  status= status.HTTP_400_BAD_REQUEST)
         
 
-def hide_text_data(image, text):
-    
-    return stepic.encode(image=image, data = text)
-
-
-def extract_key(image):
-    data = stepic.decode(image=image)
-    if isinstance(data, bytes):
-        return data.decode('utf-8')
-    return data
