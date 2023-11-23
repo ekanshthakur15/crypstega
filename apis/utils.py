@@ -1,5 +1,3 @@
-import time
-
 import stepic
 from django.conf import settings
 from django.core.mail import EmailMessage
@@ -19,7 +17,7 @@ def hide_text_data(image, text):
     return stepic.encode(image=image, data=text)
 
 
-def extract_key(image):
+def extract_data(image):
     data = stepic.decode(image=image)
     if isinstance(data, bytes):
         return data.decode('utf-8')

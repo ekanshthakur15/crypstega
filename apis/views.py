@@ -1,11 +1,10 @@
-
 import os
 
 from cryptography.fernet import Fernet
-from django.contrib.auth import authenticate, get_user_model, login
+from django.contrib.auth import login
 from django.views.decorators.csrf import csrf_exempt
 from PIL import Image
-from rest_framework import generics, permissions, status
+from rest_framework import permissions, status
 from rest_framework.authentication import BasicAuthentication
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
@@ -17,10 +16,15 @@ from .serializers import *
 from .utils import *
 
 
-class RegisterUserView(generics.CreateAPIView):
-    queryset = get_user_model().objects.all()
-    serializer_class = UserSerializer
+class RegisterUserView(APIView):
     permission_classes = (permissions.AllowAny,)
+
+    def post(self, request, *args, **kwargs):
+        serializer = UserSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class LoginView(APIView):
@@ -71,11 +75,14 @@ class ReceivedFileListView(APIView):
 
 class SteganoEncryption(APIView):
     parser_classes = (MultiPartParser, FormParser)
+    permission_classes = [IsAuthenticated]
 
     def post(self, request, *args, **kwargs):
         user = request.user
         receiver_name = request.data.get('username')
         original_file = request.data.get('file')
+        safe_code = request.data.get('safe_code')
+
         if not original_file:
             return Response({'error': 'File is required'}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -86,8 +93,10 @@ class SteganoEncryption(APIView):
 
 
         original_data = original_file.read()
-
+        
+        safe_code = safe_code.encode('utf-8')
         key = Fernet.generate_key()
+        encryption_key = key + safe_code
         cipher = Fernet(key)
         encrypted_data = cipher.encrypt(original_data)
 
@@ -100,7 +109,7 @@ class SteganoEncryption(APIView):
             return Response({'error': 'Image is required'}, status=status.HTTP_400_BAD_REQUEST)
 
         key_image = Image.open(image_file)
-        encrypted_image = hide_text_data(key_image, text=key)
+        encrypted_image = hide_text_data(key_image, text=encryption_key)
 
         media_directory = 'media/encrypted_images'
         if not os.path.exists(media_directory):
@@ -112,12 +121,13 @@ class SteganoEncryption(APIView):
         
         subject = "File sharedon CryptoKun"
         message = f"A file has been securely shared with you by {request.user.username} and the key to see it's content is the image. Thank you"
-        to_email = request.data.get('receiver')
+        #to_email = request.data.get('receiver')
+        to_email = receiver.email
         recipient_list = []
         recipient_list.append(to_email)
 
         send_email_with_image(subject, message, recipient_list, encrypted_image_path)
-
+        os.remove(encrypted_image_path)
         encrypted_file = EncryptedFile(
             user=user,
             recepient=receiver,
@@ -126,9 +136,7 @@ class SteganoEncryption(APIView):
         )
         encrypted_file.save()
 
-
-
-        return Response({"key": key, 'file_id': encrypted_file.id}, status=status.HTTP_201_CREATED)
+        return Response({ 'file_id': encrypted_file.id}, status=status.HTTP_201_CREATED)
 
 
 
@@ -138,6 +146,8 @@ class SteganoDecryption(APIView):
 
         file_id = request.data.get('file_id')
         image_file = request.data.get('image')
+        safe_code = request.data.get('safe_code')
+
 
         try:
             if not image_file:
@@ -148,23 +158,14 @@ class SteganoDecryption(APIView):
                 return Response({"error":"File does not exist"}, status= status.HTTP_404_NOT_FOUND)
             
             key_image = Image.open(image_file)
-            key = extract_key(key_image)
+            key = extract_data(key_image)
+            decryption_key = key+safe_code
             
-            cipher = Fernet(key)
+            cipher = Fernet(decryption_key)
             encrypted_data = encrypted_file.file.read()
             decrypted_data = cipher.decrypt(encrypted_data)
 
-            filename = f"{encrypted_file.file_name}_decrypted.txt"
-            with open(filename, 'wb') as file:
-                file.write(decrypted_data)
-
-            with open(filename, 'rb') as response_file:
-                response = Response(response_file.read(), content_type= 'application/octet-stream')
-                response['Content-Disposition'] = f'attachment; filename={filename}'
-
-            return response
+            return Response({'content': decrypted_data, "filename":encrypted_file.file_name}, status= status.HTTP_200_OK)
         
         except Exception as e:
             return Response({"errors": str(e)} ,  status= status.HTTP_400_BAD_REQUEST)
-        
-
