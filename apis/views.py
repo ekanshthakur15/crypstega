@@ -2,13 +2,15 @@ import os
 from datetime import datetime
 
 from cryptography.fernet import Fernet
-from django.contrib.auth import login
-from django.views.decorators.csrf import csrf_exempt
+from django.contrib.auth import authenticate, login
+from django.middleware.csrf import get_token
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt, csrf_protect
 from PIL import Image
-from rest_framework import permissions, status
-from rest_framework.authentication import BasicAuthentication
+from rest_framework import status
+from rest_framework.authentication import SessionAuthentication
 from rest_framework.parsers import FormParser, MultiPartParser
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -17,31 +19,35 @@ from .serializers import *
 from .utils import *
 
 current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-class RegisterUserView(APIView):
-    permission_classes = (permissions.AllowAny,)
 
-    def post(self, request, *args, **kwargs):
+
+class RegisterUserView(APIView):
+    permission_classes = [AllowAny]
+    def post(self, request):
         serializer = UserSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+            return Response({'message': 'Registration successful and user logged in'}, status=status.HTTP_201_CREATED)
+        else:
+            return Response({'error': 'Registration successful but login failed'}, status=status.HTTP_401_UNAUTHORIZED)
 
 
 class LoginView(APIView):
-    authentication_classes = [BasicAuthentication]
 
-    @csrf_exempt
-    def post(self, request, *args, **kwargs):
-        serializer = LoginSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+    def post(self, request, format=None):
+        username = request.data.get("username")
+        password = request.data.get("password")
+        user = authenticate(request, username=username, password=password)
 
-        user = serializer.validated_data['user']
-        login(request, user)  # Perform the login
+        if user is not None:
+            login(request, user)
+            return Response({"message": "Login successful"}, status=status.HTTP_200_OK)
+        return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
-        return Response({'message': 'Login successful'}, status=status.HTTP_200_OK)
 
 class SharedFileListView(APIView):
+    permission_classes = [IsAuthenticated]
     def get(self, request):
         try:
             query_set = EncryptedFile.objects.filter(user = request.user)
@@ -59,6 +65,7 @@ class SharedFileListView(APIView):
     
 
 class ReceivedFileListView(APIView):
+    permission_classes = [IsAuthenticated]
     def get(self, request):
         try:
             query_set = EncryptedFile.objects.filter(recepient=request.user)
@@ -160,6 +167,7 @@ CrypStega Squad"""
 
 
 class SteganoDecryption(APIView):
+    permission_classes = [IsAuthenticated]
 
     def post(self, request, format = None):
 

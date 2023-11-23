@@ -1,5 +1,6 @@
-from django.contrib.auth.views import LogoutView
 from django.urls import path
+from rest_framework_simplejwt.views import (TokenObtainPairView,
+                                            TokenRefreshView, TokenVerifyView)
 
 from .views import *
 
@@ -11,7 +12,8 @@ urlpatterns = [
     path("decrypt/", SteganoDecryption.as_view(), name = 'decrypt_view'),
 
     #authentication
-    path('register/', RegisterUserView.as_view(), name='register'),
-    path('login/', LoginView.as_view(), name='login'),
-    path('logout/', LogoutView.as_view(), name='logout'),
+    path('register/', RegisterUserView.as_view()),
+    path('login/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('refresh-token/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('token-verify/', TokenVerifyView.as_view(), name='token_verify'),
 ]
