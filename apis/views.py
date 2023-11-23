@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 
 from cryptography.fernet import Fernet
 from django.contrib.auth import login
@@ -15,7 +16,7 @@ from .models import *
 from .serializers import *
 from .utils import *
 
-
+current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 class RegisterUserView(APIView):
     permission_classes = (permissions.AllowAny,)
 
@@ -66,6 +67,7 @@ class ReceivedFileListView(APIView):
         files = []
         for file in query_set:
             data = {
+                "file_id":file.pk,
                 "file_name": file.file_name,
                 "upload_date": file.uploaded_at,
                 "from": file.user.username
@@ -82,6 +84,7 @@ class SteganoEncryption(APIView):
         receiver_name = request.data.get('username')
         original_file = request.data.get('file')
         safe_code = request.data.get('safe_code')
+        file_name = request.data.get('file_name')
 
         if not original_file:
             return Response({'error': 'File is required'}, status=status.HTTP_400_BAD_REQUEST)
@@ -118,10 +121,26 @@ class SteganoEncryption(APIView):
         encrypted_image_path = os.path.join( media_directory, 'new_' + image_file.name)
         encrypted_image.save(encrypted_image_path)
 
-        
-        subject = "File sharedon CryptoKun"
-        message = f"A file has been securely shared with you by {request.user.username} and the key to see it's content is the image. Thank you"
-        #to_email = request.data.get('receiver')
+        subject = "New File Alert from CrypStega!"
+        message = f"""Hey {receiver_name},
+
+Exciting news! Someone just shared a file with you via CrypStega. Here are the deets:
+
+📁 File Name: {file_name}
+👤 Sender: {user.username}
+📅 Date and Time: {current_time}
+
+To snag your file:
+
+Hop on over to CrypStega.
+Check out "Received Files."
+Find the file, fill in the details and click download download.
+Download the image attached and use it to get your image.
+Don't forget to ask the sender about the safe code.
+
+Cheers,
+CrypStega Squad"""
+
         to_email = receiver.email
         recipient_list = []
         recipient_list.append(to_email)
@@ -131,7 +150,7 @@ class SteganoEncryption(APIView):
         encrypted_file = EncryptedFile(
             user=user,
             recepient=receiver,
-            file_name=request.data.get('file_name'),
+            file_name=file_name,
             file=original_file
         )
         encrypted_file.save()

@@ -8,7 +8,7 @@ urlpatterns = [
     path("sent_files/", SharedFileListView.as_view()),
     path("received_files/", ReceivedFileListView.as_view()),
     path("encrypt/", SteganoEncryption.as_view()),
-    path("decrypt/", SteganoDecryption.as_view()),
+    path("decrypt/", SteganoDecryption.as_view(), name = 'decrypt_view'),
 
     #authentication
     path('register/', RegisterUserView.as_view(), name='register'),
