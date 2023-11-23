@@ -27,29 +27,5 @@ class UserSerializer(serializers.ModelSerializer):
         return user
 
 class LoginSerializer(serializers.Serializer):
-
-    username = serializers.CharField()
-    password = serializers.CharField(write_only=True)
-
-    def validate(self, data):
-        username = data.get('username')
-        password = data.get('password')
-
-        if username and password:
-            data['user'] = self.authenticate_user(username, password)
-        else:
-            raise serializers.ValidationError(
-                'Username and password are required.')
-
-        return data
-
-    def authenticate_user(self, username, password):
-        from django.contrib.auth import authenticate
-
-        user = authenticate(username=username, password=password)
-
-        if user is None:
-            raise serializers.ValidationError(
-                'Unable to log in with provided credentials.')
-
-        return user
+    username = models.CharField()
+    password = models.CharField()
