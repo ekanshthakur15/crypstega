@@ -13,7 +13,6 @@ def send_email_with_image(subject, message, recipient_list, file_path):
 
 
 def hide_text_data(image, text):
-
     return stepic.encode(image=image, data=text)
 
 

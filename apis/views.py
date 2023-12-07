@@ -1,11 +1,19 @@
+import base64
 import os
+import secrets
+import string
 from datetime import datetime
 
+from Crypto.Cipher import AES
+from Crypto.Protocol.KDF import PBKDF2
+from Crypto.Random import get_random_bytes
+from Crypto.Util.Padding import pad, unpad
 from cryptography.fernet import Fernet
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import hashes, padding
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from django.contrib.auth import authenticate, login
-from django.middleware.csrf import get_token
-from django.utils.decorators import method_decorator
-from django.views.decorators.csrf import csrf_exempt, csrf_protect
 from PIL import Image
 from rest_framework import status
 from rest_framework.authentication import SessionAuthentication
@@ -105,9 +113,15 @@ class SteganoEncryption(APIView):
         original_data = original_file.read()
         
         safe_code = safe_code.encode('utf-8')
+
+        # Generate a random key for AES encryption
         key = Fernet.generate_key()
-        encryption_key = key + safe_code
-        cipher = Fernet(key)
+        
+        # Combine safe_code and aes_key to create the final encryption key
+        encryption_key = PBKDF2(safe_code, key, dkLen=32, count=100000)
+        encryption_key = base64.urlsafe_b64encode(encryption_key)
+
+        cipher = Fernet(encryption_key)
         encrypted_data = cipher.encrypt(original_data)
 
         original_file.seek(0)
@@ -119,7 +133,7 @@ class SteganoEncryption(APIView):
             return Response({'error': 'Image is required'}, status=status.HTTP_400_BAD_REQUEST)
 
         key_image = Image.open(image_file)
-        encrypted_image = hide_text_data(key_image, text=encryption_key)
+        encrypted_image = hide_text_data(key_image, text=key)
 
         media_directory = 'media/encrypted_images'
         if not os.path.exists(media_directory):
@@ -158,11 +172,11 @@ CrypStega Squad"""
             user=user,
             recepient=receiver,
             file_name=file_name,
-            file=original_file
+            file=original_file,
         )
         encrypted_file.save()
 
-        return Response({ 'file_id': encrypted_file.id}, status=status.HTTP_201_CREATED)
+        return Response({ 'file_id': encrypted_file.id, "key": key, "encryption_key": encryption_key}, status=status.HTTP_201_CREATED)
 
 
 
@@ -174,7 +188,8 @@ class SteganoDecryption(APIView):
         file_id = request.data.get('file_id')
         image_file = request.data.get('image')
         safe_code = request.data.get('safe_code')
-
+        safe_code = safe_code.encode('utf-8')
+        
 
         try:
             if not image_file:
@@ -186,13 +201,17 @@ class SteganoDecryption(APIView):
             
             key_image = Image.open(image_file)
             key = extract_data(key_image)
-            decryption_key = key+safe_code
+            decryption_key = PBKDF2(safe_code, key.encode('utf-8'), dkLen=32, count=100000)
+
+            decryption_key = base64.urlsafe_b64encode(decryption_key)
             
             cipher = Fernet(decryption_key)
             encrypted_data = encrypted_file.file.read()
             decrypted_data = cipher.decrypt(encrypted_data)
-
+            print(decryption_key)
             return Response({'content': decrypted_data, "filename":encrypted_file.file_name}, status= status.HTTP_200_OK)
         
         except Exception as e:
             return Response({"errors": str(e)} ,  status= status.HTTP_400_BAD_REQUEST)
+        
+
