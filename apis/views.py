@@ -1,22 +1,12 @@
 import base64
 import os
-import secrets
-import string
 from datetime import datetime
 
-from Crypto.Cipher import AES
 from Crypto.Protocol.KDF import PBKDF2
-from Crypto.Random import get_random_bytes
-from Crypto.Util.Padding import pad, unpad
 from cryptography.fernet import Fernet
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import hashes, padding
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from django.contrib.auth import authenticate, login
 from PIL import Image
 from rest_framework import status
-from rest_framework.authentication import SessionAuthentication
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -111,7 +101,6 @@ class SteganoEncryption(APIView):
 
 
         original_data = original_file.read()
-        
         safe_code = safe_code.encode('utf-8')
 
         # Generate a random key for AES encryption
@@ -127,7 +116,7 @@ class SteganoEncryption(APIView):
         original_file.seek(0)
         original_file.write(encrypted_data)
 
-
+        # For hiding the partial key in the image
         image_file = request.FILES.get('image')
         if not image_file:
             return Response({'error': 'Image is required'}, status=status.HTTP_400_BAD_REQUEST)
@@ -142,6 +131,7 @@ class SteganoEncryption(APIView):
         encrypted_image_path = os.path.join( media_directory, 'new_' + image_file.name)
         encrypted_image.save(encrypted_image_path)
 
+        #For sending email to the receiver
         subject = "New File Alert from CrypStega!"
         message = f"""Hey {receiver_name},
 
@@ -176,7 +166,7 @@ CrypStega Squad"""
         )
         encrypted_file.save()
 
-        return Response({ 'file_id': encrypted_file.id, "key": key, "encryption_key": encryption_key}, status=status.HTTP_201_CREATED)
+        return Response({ 'file_id': encrypted_file.id}, status=status.HTTP_201_CREATED)
 
 
 
@@ -199,12 +189,16 @@ class SteganoDecryption(APIView):
             except EncryptedFile.DoesNotExist:
                 return Response({"error":"File does not exist"}, status= status.HTTP_404_NOT_FOUND)
             
+            #extracting key from the image
             key_image = Image.open(image_file)
             key = extract_data(key_image)
+
+            #Creating the key to decrypt the file
             decryption_key = PBKDF2(safe_code, key.encode('utf-8'), dkLen=32, count=100000)
 
             decryption_key = base64.urlsafe_b64encode(decryption_key)
             
+            #Decryption
             cipher = Fernet(decryption_key)
             encrypted_data = encrypted_file.file.read()
             decrypted_data = cipher.decrypt(encrypted_data)
