@@ -1,5 +1,5 @@
 ## Crypstega
-Secure File Encryption System
+
 **Website link:**
 # https://crypstega.vercel.app
 
